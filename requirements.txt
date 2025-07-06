@@ -1,0 +1,8 @@
+streamlit
+pandas
+numpy
+scikit-learn
+lifetimes
+mlxtend
+plotly
+scipy
