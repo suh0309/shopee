@@ -125,7 +125,7 @@ elif section == "CLV":
         df['frequency'],
         df['recency'],
         df['monetary'],
-        time=horizon
+        horizon
     )
 
     st.subheader("Top 10 CLV Predictions")
