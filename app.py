@@ -73,7 +73,20 @@ section = st.sidebar.radio("", [
 # 1. Home
 if section == "Home":
     st.title("📊 Shopee Analytics Dashboard")
-    st.markdown("Explore modules 1–10 via the sidebar.")
+    st.markdown("""
+    Explore these modules:
+    1. Know-Your-Metrics  
+    2. Segmentation (RFM + Clustering)  
+    3. CLV Prediction  
+    4. Churn Prediction  
+    5. Next-Purchase Regression  
+    6. Sales Forecast  
+    7. Market Response Modeling  
+    8. Uplift Modeling  
+    9. Association Rule Mining  
+    10. A/B Testing Analysis  
+    """)
+
 
 # 2. Know-Your-Metrics
 elif section == "Know-Your-Metrics":
@@ -136,13 +149,23 @@ elif section == "CLV":
 elif section == "Churn":
     st.header("Churn Prediction")
     feats = ['total_orders','avg_order_value','app_opens','session_duration','cart_abandons']
-    X, y = customers[feats], customers['churn']
-    clf = GradientBoostingClassifier().fit(*train_test_split(X, y, random_state=42)[:2])
+    X = customers[feats]
+    y = customers['churn']
+
+    # Correct train/test split unpacking
+    X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
+    clf = GradientBoostingClassifier().fit(X_train, y_train)
+
+    # Predict on the full feature set
     customers['churn_prob'] = clf.predict_proba(X)[:,1]
-    fig = px.histogram(customers, x='churn_prob', nbins=20,
-                       labels={'churn_prob':'Churn Probability'},
-                       title="Predicted Churn Probability")
+
+    fig = px.histogram(
+        customers, x='churn_prob', nbins=20,
+        labels={'churn_prob':'Churn Probability'},
+        title="Predicted Churn Probability Distribution"
+    )
     st.plotly_chart(fig, use_container_width=True)
+
 
 # 6. Next-Purchase Regression
 elif section == "Next-Purchase":
