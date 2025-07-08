@@ -13,7 +13,7 @@ from scipy.stats import norm
 @st.cache(allow_output_mutation=True)
 def load_data():
     np.random.seed(42)
-    # Customers
+    # Customer‐level data
     n_customers = 500
     customers = pd.DataFrame({
         'customer_id': range(1, n_customers + 1),
@@ -26,7 +26,7 @@ def load_data():
     })
     customers['churn'] = (customers['days_since_last_order'] > 30).astype(int)
 
-    # Transactions for association rules
+    # Transaction‐level data for association rules
     n_trans = 1000
     items = ['Electronics','Clothing','Home','Beauty','Toys']
     transactions = pd.DataFrame([
@@ -39,7 +39,7 @@ def load_data():
 
 customers, transactions = load_data()
 
-# --- Streamlit Layout ---
+# --- App Layout ---
 st.set_page_config(layout="wide", page_title="Shopee Analytics Dashboard")
 st.sidebar.title("Navigation")
 section = st.sidebar.radio("", [
@@ -48,78 +48,76 @@ section = st.sidebar.radio("", [
     "Uplift", "Association Rules", "A/B Testing"
 ])
 
-# --- 1. Home ---
+# 1. Home
 if section == "Home":
     st.title("📊 Shopee Analytics Dashboard")
     st.markdown("""
     Explore these modules:
-    1. Know-Your-Metrics  
-    2. Segmentation (RFM + Clustering)  
-    3. CLV Prediction  
-    4. Churn Prediction  
-    5. Next-Purchase Regression  
-    6. Sales Forecast  
-    7. Market Response Modeling  
-    8. Uplift Modeling  
-    9. Association Rule Mining  
-    10. A/B Testing Analysis  
+    - Know-Your-Metrics  
+    - Segmentation (RFM + Clustering)  
+    - CLV Prediction  
+    - Churn Prediction  
+    - Next-Purchase Regression  
+    - Sales Forecast  
+    - Market Response Modeling  
+    - Uplift Modeling  
+    - Association Rule Mining  
+    - A/B Testing Analysis  
     """)
 
-# --- 2. Know-Your-Metrics ---
+# 2. Know-Your-Metrics
 elif section == "Know-Your-Metrics":
     st.header("Know-Your-Metrics")
     window = st.selectbox("Select Window:", ["7 days","14 days","30 days"])
-    # Simulate MAU
     mau = np.random.randint(1000,5000,10)
     fig = px.line(x=list(range(1,11)), y=mau,
                   labels={'x':'Period','y':'MAU'},
                   title=f"MAU over {window}")
     st.plotly_chart(fig, use_container_width=True)
 
-# --- 3. Segmentation (RFM + Clustering) ---
+# 3. Segmentation (RFM + Clustering)
 elif section == "Segmentation":
     st.header("Customer Segmentation (RFM + K-Means)")
     rfm = customers[['customer_id','total_orders','avg_order_value','days_since_last_order']].copy()
     rfm.columns = ['id','frequency','monetary','recency']
-    st.subheader("RFM Sample")
-    st.dataframe(rfm.head())
-
     k = st.slider("Number of clusters (k):", 2, 6, 3)
     km = KMeans(n_clusters=k, random_state=42)
     rfm['cluster'] = km.fit_predict(rfm[['recency','frequency','monetary']])
-
     fig = px.scatter(rfm, x='frequency', y='monetary', color='cluster',
                      labels={'frequency':'Frequency','monetary':'Monetary'},
                      title="Clusters: Frequency vs. Monetary")
     st.plotly_chart(fig, use_container_width=True)
 
-# --- 4. CLV Prediction ---
+# 4. CLV Prediction (fixed)
 elif section == "CLV":
     st.header("Customer Lifetime Value (CLV) Prediction")
-
-    # Prepare data: only customers with frequency > 0
     df = customers[customers['total_orders'] > 1].copy()
     df['frequency'] = df['total_orders'] - 1
     df['recency'] = df['days_since_last_order']
     df['monetary'] = df['avg_order_value']
     st.write(f"Modeling on {len(df)} customers with >1 order")
 
-    # Fit BG/NBD & Gamma-Gamma
+    # Fit BG/NBD & GammaGamma with T as a Series
     bgf = BetaGeoFitter(penalizer_coef=0.0)
-    bgf.fit(df['frequency'], df['recency'], T=60)
+    T_series = pd.Series(60, index=df.index)
+    bgf.fit(df['frequency'], df['recency'], T=T_series)
+
     ggf = GammaGammaFitter(penalizer_coef=0.0)
     ggf.fit(df['frequency'], df['monetary'])
 
     horizon = st.slider("Forecast horizon (days):", 30, 180, 90, step=30)
     clv = bgf.customer_lifetime_value(
         ggf,
-        df['frequency'], df['recency'], df['monetary'],
+        df['frequency'],
+        df['recency'],
+        df['monetary'],
         time=horizon
     )
+
     st.subheader("Top 10 CLV Predictions")
     st.write(clv.sort_values(ascending=False).head(10))
 
-# --- 5. Churn Prediction ---
+# 5. Churn Prediction
 elif section == "Churn":
     st.header("Churn Prediction")
     feats = ['total_orders','avg_order_value','app_opens','session_duration','cart_abandons']
@@ -127,28 +125,25 @@ elif section == "Churn":
     Xtr, Xte, ytr, yte = train_test_split(X, y, random_state=42)
     clf = GradientBoostingClassifier().fit(Xtr, ytr)
     customers['churn_prob'] = clf.predict_proba(X)[:,1]
-
     fig = px.histogram(customers, x='churn_prob', nbins=20,
                        labels={'churn_prob':'Churn Probability'},
                        title="Predicted Churn Probability")
     st.plotly_chart(fig, use_container_width=True)
 
-# --- 6. Next-Purchase Regression ---
+# 6. Next-Purchase Regression
 elif section == "Next-Purchase":
     st.header("Next-Purchase Day Regression")
     x = st.selectbox("Select feature (X):", ['total_orders','avg_order_value','app_opens'])
     y = customers['days_since_last_order']
-
     model = RandomForestRegressor(n_estimators=50, random_state=42)
     model.fit(customers[[x]], y)
     customers['pred_next'] = model.predict(customers[[x]])
-
     fig = px.scatter(customers, x=x, y='pred_next',
                      labels={x:x.replace('_',' ').title(),'pred_next':'Predicted Days'},
-                     title=f"Predicted Days to Next Order vs. {x.replace('_',' ').title()}")
+                     title=f"Predicted Days to Next Order vs {x.replace('_',' ').title()}")
     st.plotly_chart(fig, use_container_width=True)
 
-# --- 7. Sales Forecast ---
+# 7. Sales Forecast
 elif section == "Sales Forecast":
     st.header("Sales Forecast (Simulated Linear Trend)")
     days = np.arange(1,31)
@@ -158,7 +153,7 @@ elif section == "Sales Forecast":
                   title="Simulated Daily Sales Forecast")
     st.plotly_chart(fig, use_container_width=True)
 
-# --- 8. Market Response Modeling ---
+# 8. Market Response
 elif section == "Market Response":
     st.header("Market Response Curve")
     spend = np.linspace(100,1000,10)
@@ -168,7 +163,7 @@ elif section == "Market Response":
                      title="Logarithmic Market Response")
     st.plotly_chart(fig, use_container_width=True)
 
-# --- 9. Uplift Modeling ---
+# 9. Uplift Modeling
 elif section == "Uplift":
     st.header("Uplift Modeling (Simulated)")
     df_up = pd.DataFrame({
@@ -181,7 +176,7 @@ elif section == "Uplift":
                        title="Simulated Uplift: Purchase by Group")
     st.plotly_chart(fig, use_container_width=True)
 
-# --- 10. Association Rule Mining ---
+# 10. Association Rule Mining
 elif section == "Association Rules":
     st.header("Association Rule Mining")
     basket = transactions.set_index('transaction_id')
@@ -195,7 +190,7 @@ elif section == "Association Rules":
                         title="Elbow: Support vs Frequent Itemsets")
     st.plotly_chart(fig_elbow, use_container_width=True)
 
-    # Rule sliders
+    # Rule filters
     min_sup = st.slider("Min Support:", 0.01,0.1,0.05)
     min_conf = st.slider("Min Confidence:", 0.1,1.0,0.3)
     freq_sets = apriori(basket, min_support=min_sup, use_colnames=True)
@@ -205,7 +200,7 @@ elif section == "Association Rules":
     top10 = rules.sort_values('lift', ascending=False).head(10)
     st.dataframe(top10[['antecedents','consequents','support','confidence','lift']])
 
-# --- 11. A/B Testing Analysis ---
+# 11. A/B Testing
 else:
     st.header("A/B Testing Analysis")
     cA = st.number_input("Conversions in A Group:", 0, 1000, 50)
