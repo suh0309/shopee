@@ -141,9 +141,14 @@ elif section == "CLV":
         horizon
     )
 
-    st.subheader("Top 10 CLV Predictions")
-    st.write(clv.sort_values(ascending=False).head(10))
+   # 5) Prepare a nicely headed DataFrame
+    top10 = clv.sort_values(ascending=False).head(10)
+    clv_df = top10.reset_index()
+    clv_df.columns = ["Customer ID", "Predicted CLV"]
 
+    # 6) Display
+    st.subheader("Top 10 Customers by Predicted CLV")
+    st.dataframe(clv_df, use_container_width=True)
 
 # 5. Churn Prediction
 elif section == "Churn":
