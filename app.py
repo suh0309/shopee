@@ -99,33 +99,38 @@ elif section == "Segmentation":
     st.plotly_chart(fig, use_container_width=True)
 
 # 4. CLV Prediction (Fixed & Regularized)
+
 elif section == "CLV":
     st.header("Customer Lifetime Value (CLV) Prediction")
-    df = customers[customers['frequency'] > 0].copy()  # only repeaters
+    df = customers[customers['frequency'] > 0].copy()
     st.write(f"Modeling on {len(df)} customers with >0 repeat purchases")
 
-    # 1) BG/NBD with light penalization
+    # 1) BG/NBD
     bgf = BetaGeoFitter(penalizer_coef=0.01)
     T_series = pd.Series(90, index=df.index)
     try:
         bgf.fit(df['frequency'], df['recency'], T=T_series)
     except ConvergenceError:
-        st.error(
-            "⚠️ BG/NBD failed to converge. "
-            "Try increasing penalizer_coef or filtering more strictly."
-        )
+        st.error("⚠️ BG/NBD failed to converge.")
         st.stop()
 
-    # 2) Gamma-Gamma for monetary
+    # 2) Gamma-Gamma
     ggf = GammaGammaFitter(penalizer_coef=0.01)
     ggf.fit(df['frequency'], df['monetary'])
 
+    # Forecast
     horizon = st.slider("Forecast horizon (days):", 30, 180, 90, step=30)
-    clv = bgf.customer_lifetime_value(
-        ggf, df['frequency'], df['recency'], df['monetary'], time=horizon
+    clv = ggf.customer_lifetime_value(
+        bgf,                         # pass the BG/NBD model here
+        df['frequency'],
+        df['recency'],
+        df['monetary'],
+        time=horizon
     )
+
     st.subheader("Top 10 CLV Predictions")
     st.write(clv.sort_values(ascending=False).head(10))
+
 
 # 5. Churn Prediction
 elif section == "Churn":
